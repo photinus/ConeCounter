@@ -153,6 +153,7 @@ fun AppRoot(
                 KidsScreen(
                     kids = kids,
                     tripName = uiState.tripName,
+                    cruiseDay = uiState.cruiseDay,
                     familyGoalOverride = uiState.familyGoalOverride,
                     autoFamilyGoal = kids.sumOf { it.dailyGoal },
                     onAddKid = viewModel::addKid,

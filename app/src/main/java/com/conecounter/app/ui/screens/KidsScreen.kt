@@ -8,8 +8,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -35,6 +38,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.conecounter.app.data.Kid
 import com.conecounter.app.shortcuts.ShortcutHelper
@@ -45,6 +50,7 @@ import com.conecounter.app.ui.components.KidEditDialog
 fun KidsScreen(
     kids: List<Kid>,
     tripName: String,
+    cruiseDay: Int,
     familyGoalOverride: Int?,
     autoFamilyGoal: Int,
     onAddKid: (name: String, emoji: String, colorHex: String, dailyGoal: Int) -> Unit,
@@ -55,6 +61,7 @@ fun KidsScreen(
     onRestartTripToday: () -> Unit
 ) {
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
     var showAddDialog by remember { mutableStateOf(false) }
     var editingKid by remember { mutableStateOf<Kid?>(null) }
 
@@ -67,6 +74,9 @@ fun KidsScreen(
     var goalOverrideField by remember { mutableStateOf(familyGoalOverride) }
 
     LazyColumn(
+        // Keeps content (and the bottom nav bar, which lives outside this screen) clear of the
+        // on-screen keyboard so it isn't left covering navigation after editing the trip name.
+        modifier = Modifier.imePadding(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -74,6 +84,11 @@ fun KidsScreen(
             Card(shape = ShapeRounded(20.dp)) {
                 Column(Modifier.padding(18.dp)) {
                     Text("Trip Setup", style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        "Currently on Day $cruiseDay",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
                     Spacer(Modifier.height(12.dp))
                     OutlinedTextField(
                         value = tripNameField,
@@ -83,6 +98,8 @@ fun KidsScreen(
                         },
                         label = { Text("Trip name") },
                         singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(Modifier.height(12.dp))
