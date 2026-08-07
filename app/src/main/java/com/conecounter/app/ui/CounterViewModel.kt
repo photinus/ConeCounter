@@ -8,12 +8,15 @@ import com.conecounter.app.data.COMMON_FLAVORS
 import com.conecounter.app.data.CounterRepository
 import com.conecounter.app.data.Kid
 import com.conecounter.app.data.Scoop
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.TextStyle
@@ -46,8 +49,26 @@ data class AppUiState(
 
 class CounterViewModel(private val repository: CounterRepository) : ViewModel() {
 
+    private val _events = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    /** One-shot user-facing messages (toasts) for actions that need explicit confirmation or error feedback. */
+    val events: SharedFlow<String> = _events.asSharedFlow()
+
     init {
         viewModelScope.launch { repository.ensureStartDateInitialized() }
+    }
+
+    /** Runs [block], surfacing a toast on failure (and [successMessage], if given, on success) so nothing fails silently. */
+    private fun launchSafely(successMessage: String? = null, block: suspend () -> Unit) {
+        viewModelScope.launch {
+            try {
+                block()
+                successMessage?.let { _events.tryEmit(it) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _events.tryEmit("Something went wrong saving that — please try again.")
+            }
+        }
     }
 
     val uiState: StateFlow<AppUiState> = combine(
@@ -103,35 +124,37 @@ class CounterViewModel(private val repository: CounterRepository) : ViewModel() 
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppUiState())
 
     fun addKid(name: String, emoji: String, colorHex: String, dailyGoal: Int) {
-        viewModelScope.launch { repository.addKid(name, emoji, colorHex, dailyGoal) }
+        launchSafely { repository.addKid(name, emoji, colorHex, dailyGoal) }
     }
 
     fun updateKid(kid: Kid) {
-        viewModelScope.launch { repository.updateKid(kid) }
+        launchSafely { repository.updateKid(kid) }
     }
 
     fun deleteKid(kid: Kid) {
-        viewModelScope.launch { repository.deleteKid(kid) }
+        launchSafely { repository.deleteKid(kid) }
     }
 
     fun logScoop(kidId: Long, flavor: String) {
-        viewModelScope.launch { repository.logScoop(kidId, flavor.ifBlank { COMMON_FLAVORS.first() }) }
+        launchSafely { repository.logScoop(kidId, flavor.ifBlank { COMMON_FLAVORS.first() }) }
     }
 
     fun deleteScoop(scoop: Scoop) {
-        viewModelScope.launch { repository.deleteScoop(scoop) }
+        launchSafely { repository.deleteScoop(scoop) }
     }
 
     fun setTripName(name: String) {
-        viewModelScope.launch { repository.setTripName(name) }
+        launchSafely { repository.setTripName(name) }
     }
 
     fun setStartDate(date: LocalDate) {
-        viewModelScope.launch { repository.setStartDate(date.toEpochDay()) }
+        launchSafely(successMessage = "Day 1 starts today! 🍦") {
+            repository.setStartDate(date.toEpochDay())
+        }
     }
 
     fun setFamilyGoalOverride(goal: Int?) {
-        viewModelScope.launch { repository.setFamilyGoalOverride(goal) }
+        launchSafely { repository.setFamilyGoalOverride(goal) }
     }
 
     /** Logs a scoop instantly for a home-screen shortcut tap. Returns the kid name + flavor logged, or null if the kid no longer exists. */

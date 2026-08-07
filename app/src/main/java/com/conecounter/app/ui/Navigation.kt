@@ -63,6 +63,12 @@ fun AppRoot(
         ShortcutHelper.syncDynamicShortcuts(context, kids)
     }
 
+    LaunchedEffect(Unit) {
+        viewModel.events.collect { message ->
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        }
+    }
+
     LaunchedEffect(pendingAction) {
         when (val action = pendingAction) {
             is MainActivity.PendingAction.QuickLog -> {

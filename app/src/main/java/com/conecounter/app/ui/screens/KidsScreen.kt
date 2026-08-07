@@ -58,6 +58,14 @@ fun KidsScreen(
     var showAddDialog by remember { mutableStateOf(false) }
     var editingKid by remember { mutableStateOf<Kid?>(null) }
 
+    // Local, optimistic copies of the trip settings: the "real" values in `tripName` /
+    // `familyGoalOverride` only update after a round trip through DataStore, which is too slow
+    // to drive a text field or a rapid-tap stepper directly (typing/tapping would look laggy or
+    // drop input while waiting for that echo). We seed from the incoming value once and then let
+    // local edits win, firing the save on every change.
+    var tripNameField by remember { mutableStateOf(tripName) }
+    var goalOverrideField by remember { mutableStateOf(familyGoalOverride) }
+
     LazyColumn(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -68,8 +76,11 @@ fun KidsScreen(
                     Text("Trip Setup", style = MaterialTheme.typography.titleLarge)
                     Spacer(Modifier.height(12.dp))
                     OutlinedTextField(
-                        value = tripName,
-                        onValueChange = onTripNameChange,
+                        value = tripNameField,
+                        onValueChange = {
+                            tripNameField = it
+                            onTripNameChange(it)
+                        },
                         label = { Text("Trip name") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
@@ -77,22 +88,26 @@ fun KidsScreen(
                     Spacer(Modifier.height(12.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Switch(
-                            checked = familyGoalOverride != null,
+                            checked = goalOverrideField != null,
                             onCheckedChange = { on ->
-                                onFamilyGoalOverrideChange(if (on) autoFamilyGoal else null)
+                                goalOverrideField = if (on) autoFamilyGoal else null
+                                onFamilyGoalOverrideChange(goalOverrideField)
                             }
                         )
                         Spacer(Modifier.width(10.dp))
                         Text("Custom family goal")
                     }
-                    if (familyGoalOverride != null) {
+                    val currentGoalOverride = goalOverrideField
+                    if (currentGoalOverride != null) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = {
-                                onFamilyGoalOverrideChange((familyGoalOverride - 1).coerceAtLeast(1))
+                                goalOverrideField = (currentGoalOverride - 1).coerceAtLeast(1)
+                                onFamilyGoalOverrideChange(goalOverrideField)
                             }) { Icon(Icons.Filled.Remove, contentDescription = "Decrease") }
-                            Text("$familyGoalOverride scoops/day")
+                            Text("$currentGoalOverride scoops/day")
                             IconButton(onClick = {
-                                onFamilyGoalOverrideChange((familyGoalOverride + 1).coerceAtMost(99))
+                                goalOverrideField = (currentGoalOverride + 1).coerceAtMost(99)
+                                onFamilyGoalOverrideChange(goalOverrideField)
                             }) { Icon(Icons.Filled.Add, contentDescription = "Increase") }
                         }
                     } else {
