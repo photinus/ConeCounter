@@ -1,6 +1,8 @@
 package com.conecounter.app.ui
 
 import android.widget.Toast
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
@@ -19,14 +21,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.navigation.NavDestination.Companion.hierarchy
-import androidx.navigation.NavGraph.Companion.findStartDestination
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.compose.rememberNavController
 import com.conecounter.app.MainActivity
 import com.conecounter.app.shortcuts.ShortcutHelper
 import com.conecounter.app.ui.components.LogScoopSheet
@@ -36,14 +33,18 @@ import com.conecounter.app.ui.screens.LogScreen
 import com.conecounter.app.ui.screens.StatsScreen
 import java.time.LocalDate
 
-private sealed class BottomTab(val route: String, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    object Home : BottomTab("home", "Home", Icons.Filled.Home)
-    object Log : BottomTab("log", "Log", Icons.Filled.List)
-    object Stats : BottomTab("stats", "Stats", Icons.Filled.BarChart)
-    object Kids : BottomTab("kids", "Kids", Icons.Filled.Group)
+/**
+ * The app has exactly 4 flat top-level tabs and no deep links or detail flows that need a real
+ * back stack, so tab switching is done with plain state instead of Navigation-Compose — that
+ * sidesteps a bottom-nav bug where popUpTo/saveState/restoreState occasionally landed on the
+ * wrong tab after navigating in from a non-tab entry point (e.g. Home's "Add a Kid" button).
+ */
+private enum class Tab(val label: String, val icon: ImageVector) {
+    Home("Home", Icons.Filled.Home),
+    Log("Log", Icons.Filled.List),
+    Stats("Stats", Icons.Filled.BarChart),
+    Kids("Kids", Icons.Filled.Group)
 }
-
-private val bottomTabs = listOf(BottomTab.Home, BottomTab.Log, BottomTab.Stats, BottomTab.Kids)
 
 @Composable
 fun AppRoot(
@@ -54,8 +55,8 @@ fun AppRoot(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val kids = uiState.kidStats.map { it.kid }
     val context = LocalContext.current
-    val navController = rememberNavController()
 
+    var selectedTab by remember { mutableStateOf(Tab.Home) }
     var showLogSheet by remember { mutableStateOf(false) }
     var preselectedKidId by remember { mutableStateOf<Long?>(null) }
 
@@ -90,20 +91,11 @@ fun AppRoot(
 
     Scaffold(
         bottomBar = {
-            val backStackEntry by navController.currentBackStackEntryAsState()
-            val currentRoute = backStackEntry?.destination
             NavigationBar {
-                bottomTabs.forEach { tab ->
-                    val selected = currentRoute?.hierarchy?.any { it.route == tab.route } == true
+                Tab.entries.forEach { tab ->
                     NavigationBarItem(
-                        selected = selected,
-                        onClick = {
-                            navController.navigate(tab.route) {
-                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
+                        selected = selectedTab == tab,
+                        onClick = { selectedTab = tab },
                         icon = { Icon(tab.icon, contentDescription = tab.label) },
                         label = { Text(tab.label) }
                     )
@@ -111,13 +103,13 @@ fun AppRoot(
             }
         }
     ) { padding ->
-        NavHost(
-            navController = navController,
-            startDestination = BottomTab.Home.route,
-            modifier = Modifier.padding(padding)
+        Box(
+            modifier = Modifier
+                .padding(padding)
+                .fillMaxSize()
         ) {
-            composable(BottomTab.Home.route) {
-                HomeScreen(
+            when (selectedTab) {
+                Tab.Home -> HomeScreen(
                     tripName = uiState.tripName,
                     cruiseDay = uiState.cruiseDay,
                     kidStats = uiState.kidStats,
@@ -133,24 +125,16 @@ fun AppRoot(
                         preselectedKidId = kidId
                         showLogSheet = true
                     },
-                    onGoToKids = {
-                        navController.navigate(BottomTab.Kids.route)
-                    }
+                    onGoToKids = { selectedTab = Tab.Kids }
                 )
-            }
-            composable(BottomTab.Log.route) {
-                LogScreen(scoops = uiState.recentScoops, onDelete = viewModel::deleteScoop)
-            }
-            composable(BottomTab.Stats.route) {
-                StatsScreen(
+                Tab.Log -> LogScreen(scoops = uiState.recentScoops, onDelete = viewModel::deleteScoop)
+                Tab.Stats -> StatsScreen(
                     totalScoopsAllTime = uiState.totalScoopsAllTime,
                     topFlavorAllTime = uiState.topFlavorAllTime,
                     weeklyCounts = uiState.weeklyCounts,
                     kidStats = uiState.kidStats
                 )
-            }
-            composable(BottomTab.Kids.route) {
-                KidsScreen(
+                Tab.Kids -> KidsScreen(
                     kids = kids,
                     tripName = uiState.tripName,
                     cruiseDay = uiState.cruiseDay,
