@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Cone Counter</string>
+    <string name="shortcut_log_scoop_short">Log a Scoop</string>
+    <string name="shortcut_log_scoop_long">Log a Scoop</string>
+</resources>
